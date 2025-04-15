@@ -304,6 +304,44 @@ app.get("/api/permits/:id", async (req, res) => {
   }
 });
 
+// Get permit by Id_number
+app.get("/api/permits/by-id-number/:id_number", async (req, res) => {
+  try {
+    const { id_number } = req.params;
+    const connection = await pool.getConnection();
+
+    // Fetch all permits with the same Id_number
+    const [rows] = await connection.execute(
+      "SELECT * FROM kplc_permits WHERE Id_number = ?",
+      [id_number]
+    );
+
+    connection.release();
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "No permits found for this Id_number" });
+    }
+
+    // Format each permit
+    const permits = rows.map((permit) => ({
+      ...permit,
+      work_details: Array.isArray(permit.work_details)
+        ? permit.work_details
+        : [],
+      earth_points: Array.isArray(permit.earth_points)
+        ? permit.earth_points
+        : [],
+    }));
+
+    res.json(permits); // Return array of permits
+  } catch (error) {
+    console.error("Error fetching permits:", error);
+    res.status(500).json({ error: "Failed to fetch permits" });
+  }
+});
+
 app.put("/api/permits/:permit_number", async (req, res) => {
   const { permit_number } = req.params;
 
