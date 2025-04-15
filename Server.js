@@ -204,7 +204,7 @@ app.get("/api/users", async (req, res) => {
       const token = jwt.sign(
         { id: user.id, email: user.Email },
         process.env.JWT_SECRET || "your_secret_key",
-        { expiresIn: "1h" }
+        { expiresIn: "120d" }
       );
 
       return {
