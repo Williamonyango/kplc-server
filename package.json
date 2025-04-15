@@ -2,7 +2,7 @@
     "name": "kplc-permits-backend",
     "version": "1.0.0",
     "description": "Backend server for Kenya Power and Lighting Company's Permit System",
-    "main": "server.js",
+    "main": "Server.js",
     "scripts": {
         "start": "node Server.js",
         "dev": "nodemon Server.js",
