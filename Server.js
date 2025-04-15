@@ -356,6 +356,29 @@ app.put("/api/permits/:permit_number", async (req, res) => {
     if (connection) connection.release();
   }
 });
+// Route to add Id_number column as an integer to the table
+app.post("/api/permits/add-id-column", async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+
+    // SQL query to add the new column Id_number as an integer
+    const addColumnQuery = `ALTER TABLE kplc_permits ADD COLUMN Id_number INT`;
+
+    await connection.query(addColumnQuery);
+    connection.release();
+
+    res.status(200).json({
+      message:
+        "Column 'Id_number' added successfully as INTEGER to kplc_permits table.",
+    });
+  } catch (error) {
+    console.error("Error adding Id_number column:", error);
+    res.status(500).json({
+      error: "Failed to add Id_number column",
+      details: error.message,
+    });
+  }
+});
 
 // Start the server
 app.listen(PORT, "0.0.0.0", () => {
