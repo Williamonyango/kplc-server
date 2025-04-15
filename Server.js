@@ -183,12 +183,23 @@ app.get("/api/permits", async (req, res) => {
 
 // Get all users
 app.get("/api/users", async (req, res) => {
+  const { email, id_number } = req.query;
+
   try {
     const connection = await pool.getConnection();
-    const [rows] = await connection.query("SELECT * FROM users");
+
+    let query = "SELECT * FROM users";
+    let values = [];
+
+    if (email && id_number) {
+      query += " WHERE Email = ? AND Id_number = ?";
+      values.push(email, id_number);
+    }
+
+    const [rows] = await connection.query(query, values);
     connection.release();
 
-    // Generate a token for each user
+    // Generate a token for each matched user
     const usersWithTokens = rows.map((user) => {
       const token = jwt.sign(
         { id: user.id, email: user.Email },
@@ -202,7 +213,7 @@ app.get("/api/users", async (req, res) => {
       };
     });
 
-    res.json(usersWithTokens);
+    res.status(200).json(usersWithTokens);
   } catch (error) {
     console.error("Error fetching users:", error);
     res.status(500).json({ error: "Failed to fetch users" });
