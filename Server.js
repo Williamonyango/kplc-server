@@ -94,6 +94,7 @@ app.post("/api/permits", async (req, res) => {
       cancellation_consent_person: safeValue(
         req.body.cancellation_consent_person
       ),
+      Id_number: safeValue(req.body.Id_number),
     };
 
     if (!permit.permit_number) {
@@ -110,8 +111,8 @@ app.post("/api/permits", async (req, res) => {
           permit_number, issued_to, work_details, safe_work_limits, safe_hv_work_limits,
           mv_lv_equipment, earth_points, additional_earth_connections,
           consent_person, issue_date, issue_time, submitted_at, urgency, status, 
-          comments, approver_name, approval_date, approval_time, clearance_date, clearance_time, clearance_signature, connections, cancellation_consent_person, substation
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? , ?, ?, ?, ?, ?, ?)`,
+          comments, approver_name, approval_date, approval_time, clearance_date, clearance_time, clearance_signature, connections, cancellation_consent_person, substation, Id_number
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? , ?, ?, ?, ?, ?, ?, ?)`,
         [
           permit.permit_number,
           permit.issued_to,
@@ -137,6 +138,7 @@ app.post("/api/permits", async (req, res) => {
           permit.connections,
           permit.cancellation_consent_person,
           permit.substation,
+          permit.Id_number,
         ]
       );
 
