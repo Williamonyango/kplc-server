@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const mysql = require("mysql2/promise");
 const bodyParser = require("body-parser");
+const jwt = require("jsonwebtoken");
 const e = require("express");
 require("dotenv").config();
 
@@ -162,31 +163,101 @@ app.get("/api/permits", async (req, res) => {
     connection.release();
 
     const permits = rows.map((permit) => {
-      try {
-        return {
-          ...permit,
-          work_details: isValidJSON(permit.work_details)
-            ? JSON.parse(permit.work_details)
-            : [],
-          earth_points: isValidJSON(permit.earth_points)
-            ? JSON.parse(permit.earth_points)
-            : [],
-        };
-      } catch (parseError) {
-        console.error(`Error parsing permit:`, parseError);
-        console.error(`Problematic permit data:`, permit);
-        return {
-          ...permit,
-          work_details: [],
-          earth_points: [],
-        };
-      }
+      return {
+        ...permit,
+        work_details: Array.isArray(permit.work_details)
+          ? permit.work_details
+          : [],
+        earth_points: Array.isArray(permit.earth_points)
+          ? permit.earth_points
+          : [],
+      };
     });
 
     res.json(permits);
   } catch (error) {
     console.error("Error fetching permits:", error);
     res.status(500).json({ error: "Failed to fetch permits" });
+  }
+});
+
+// Get all users
+app.get("/api/users", async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    const [rows] = await connection.query("SELECT * FROM users");
+    connection.release();
+
+    // Generate a token for each user
+    const usersWithTokens = rows.map((user) => {
+      const token = jwt.sign(
+        { id: user.id, email: user.Email },
+        process.env.JWT_SECRET || "your_secret_key",
+        { expiresIn: "1h" }
+      );
+
+      return {
+        ...user,
+        token,
+      };
+    });
+
+    res.json(usersWithTokens);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+});
+
+// Create user
+app.post("/api/users", async (req, res) => {
+  const { Name, Email, Id_number } = req.body;
+
+  // Basic input validation
+  if (!Name || !Email || !Id_number) {
+    return res
+      .status(400)
+      .json({ error: "Please provide Name, Email, and Id_number." });
+  }
+
+  try {
+    const connection = await pool.getConnection();
+
+    // Check if email or ID number already exists
+    const [existing] = await connection.query(
+      "SELECT * FROM users WHERE Email = ?",
+      [Email]
+    );
+
+    if (existing.length > 0) {
+      connection.release();
+      return res.status(409).json({ error: "Email already exists." });
+    }
+
+    // Insert new user
+    await connection.query(
+      "INSERT INTO users (Name, Email, Id_number) VALUES (?, ?, ?)",
+      [Name, Email, Id_number]
+    );
+
+    // Retrieve the newly inserted user
+    const [newUser] = await connection.query(
+      "SELECT * FROM users WHERE Email = ?",
+      [Email]
+    );
+    connection.release();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: newUser[0].id, email: newUser[0].Email },
+      process.env.JWT_SECRET || "your_secret_key",
+      { expiresIn: "1h" }
+    );
+
+    res.status(201).json({ user: newUser[0], token });
+  } catch (error) {
+    console.error("Error creating user:", error);
+    res.status(500).json({ error: "Failed to create user" });
   }
 });
 
@@ -207,11 +278,11 @@ app.get("/api/permits/:id", async (req, res) => {
 
     const permit = {
       ...rows[0],
-      work_details: isValidJSON(rows[0].work_details)
-        ? JSON.parse(rows[0].work_details)
+      work_details: Array.isArray(rows[0].work_details)
+        ? rows[0].work_details
         : [],
-      earth_points: isValidJSON(rows[0].earth_points)
-        ? JSON.parse(rows[0].earth_points)
+      earth_points: Array.isArray(rows[0].earth_points)
+        ? rows[0].earth_points
         : [],
     };
 
@@ -219,6 +290,59 @@ app.get("/api/permits/:id", async (req, res) => {
   } catch (error) {
     console.error("Error fetching permit:", error);
     res.status(500).json({ error: "Failed to fetch permit" });
+  }
+});
+
+app.put("/api/permits/:permit_number", async (req, res) => {
+  const { permit_number } = req.params;
+
+  const updatedData = {
+    clearance_date: req.body.clearance_date,
+    clearance_time: req.body.clearance_time,
+    clearance_signature: req.body.clearance_signature,
+    connections: req.body.connections,
+    cancellation_consent_person: req.body.cancellation_consent_person,
+  };
+
+  // Remove undefined or null fields
+  Object.keys(updatedData).forEach(
+    (key) => updatedData[key] == null && delete updatedData[key]
+  );
+
+  // Check if anything is left to update
+  if (Object.keys(updatedData).length === 0) {
+    return res
+      .status(400)
+      .json({ error: "No valid fields provided to update." });
+  }
+
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+
+    const fields = Object.keys(updatedData);
+    const values = Object.values(updatedData);
+
+    const setClause = fields.map((field) => `${field} = ?`).join(", ");
+    values.push(permit_number);
+
+    const sql = `UPDATE kplc_permits SET ${setClause} WHERE permit_number = ?`;
+
+    const [result] = await connection.execute(sql, values);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Permit not found" });
+    }
+
+    res.status(200).json({ message: "Permit updated successfully" });
+  } catch (error) {
+    console.error("Error updating permit:", error.message);
+    res
+      .status(500)
+      .json({ error: "Failed to update permit", details: error.message });
+  } finally {
+    if (connection) connection.release();
   }
 });
 
